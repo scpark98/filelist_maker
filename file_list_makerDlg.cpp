@@ -210,17 +210,17 @@ void CfilelistmakerDlg::make_list()
 
 	int pos;
 
-	while ((pos = find_dqstring(m_files, _T("filelist.txt"))) >= 0)
+	while ((pos = find_dqstring(m_files, _T("filelist.lst"))) >= 0)
 	{
 		m_files.erase(m_files.begin() + pos);
 	}
 
 	FILE* fp = NULL;
 
-	_tfopen_s(&fp, m_droppedFolder + _T("\\filelist.txt"), _T("wt"));
+	_tfopen_s(&fp, m_droppedFolder + _T("\\filelist.lst"), _T("wt"));
 	if (fp == NULL)
 	{
-		AfxMessageBox(_T("filelist.txt 파일 생성 실패"));
+		AfxMessageBox(_T("filelist.lst 파일 생성 실패"));
 		return;
 	}
 
