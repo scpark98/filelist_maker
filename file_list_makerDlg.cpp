@@ -193,14 +193,28 @@ void CfilelistmakerDlg::OnDropFiles(HDROP hDropInfo)
 void CfilelistmakerDlg::make_list()
 {
 	int i;
+	long t0 = clock();
 
 	m_files.clear();
 
 	for (i = 0; i < m_dropList.size(); i++)
 	{
+		std::deque<CString> files;
+
 		if (IsFolder(m_dropList[i]))
 		{
-			FindAllFiles(m_dropList[i], &m_files, _T(""), _T(""), true);
+			//약 2,000개 파일 검색 소요시간
+			//FindAllFiles	: 2,902ms
+			//find_all_files: 163ms (94%정도 시간단축)
+			if (false)
+			{
+				//FindAllFiles(m_dropList[i], &m_files, _T(""), _T(""), true);
+			}
+			else
+			{
+				files = find_all_files(m_dropList[i]);
+				m_files.insert(m_files.end(), files.begin(), files.end());
+			}
 		}
 		else
 		{
@@ -232,6 +246,11 @@ void CfilelistmakerDlg::make_list()
 	}
 
 	fclose(fp);
+
+	CString str;
+	str.Format(_T("Filelist_maker (%ld ms)"), clock() - t0);
+	SetWindowText(str);
+
 	MessageBeep(0);
 }
 
