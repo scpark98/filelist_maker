@@ -231,7 +231,8 @@ void CfilelistmakerDlg::make_list()
 
 	FILE* fp = NULL;
 
-	_tfopen_s(&fp, m_droppedFolder + _T("\\filelist.lst"), _T("wt"));
+	//_tfopen_s(&fp, m_droppedFolder + _T("\\filelist.lst"), _T("wt"));
+	fp = fopen(m_droppedFolder + _T("\\filelist.lst"), _T("wt"));
 	if (fp == NULL)
 	{
 		AfxMessageBox(_T("filelist.lst 파일 생성 실패"));
@@ -242,7 +243,8 @@ void CfilelistmakerDlg::make_list()
 	{
 		m_files[i].Replace(m_droppedFolder + _T("\\"), _T(""));
 		//m_files[i].Replace(_T("\\"), _T("/"));
-		_ftprintf(fp, _T("%s\n"), m_files[i]);
+		//_ftprintf(fp, _T("%s\n"), m_files[i]);
+		fprintf(fp, _T("%s\n"), m_files[i]);
 	}
 
 	fclose(fp);
