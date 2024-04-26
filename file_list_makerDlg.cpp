@@ -183,7 +183,7 @@ void CfilelistmakerDlg::OnDropFiles(HDROP hDropInfo)
 	if (PathIsDirectory(m_dropList[0]))
 		m_droppedFolder = GetParentDirectory(m_dropList[0]);
 	else
-		m_droppedFolder = GetFolderNameFromFullPath(m_dropList[0]);
+		m_droppedFolder = get_part(m_dropList[0], fn_folder);
 
 	make_list();
 
@@ -224,6 +224,8 @@ void CfilelistmakerDlg::make_list()
 
 	int pos;
 
+	//확장자를 .lst로 한 이유는 NH UCTogether 당시 파일보안정책으로
+	//서버에서 .txt파일을 열면 바로 암호화되어 파일 내용이 변경되는 문제가 발생하여 lst로 변경함.
 	while ((pos = find_dqstring(m_files, _T("filelist.lst"))) >= 0)
 	{
 		m_files.erase(m_files.begin() + pos);
@@ -231,8 +233,8 @@ void CfilelistmakerDlg::make_list()
 
 	FILE* fp = NULL;
 
-	//_tfopen_s(&fp, m_droppedFolder + _T("\\filelist.lst"), _T("wt"));
-	fp = fopen(m_droppedFolder + _T("\\filelist.lst"), _T("wt"));
+	_tfopen_s(&fp, m_droppedFolder + _T("\\filelist.lst"), _T("wt"));
+	//fp = fopen(m_droppedFolder + _T("\\filelist.lst"), _T("wt"));
 	if (fp == NULL)
 	{
 		AfxMessageBox(_T("filelist.lst 파일 생성 실패"));
@@ -244,7 +246,7 @@ void CfilelistmakerDlg::make_list()
 		m_files[i].Replace(m_droppedFolder + _T("\\"), _T(""));
 		//m_files[i].Replace(_T("\\"), _T("/"));
 		//_ftprintf(fp, _T("%s\n"), m_files[i]);
-		fprintf(fp, _T("%s\n"), m_files[i]);
+		_ftprintf(fp, _T("%s\n"), m_files[i]);
 	}
 
 	fclose(fp);
