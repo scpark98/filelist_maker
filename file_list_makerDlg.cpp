@@ -61,6 +61,9 @@ CfilelistmakerDlg::CfilelistmakerDlg(CWnd* pParent /*=nullptr*/)
 void CfilelistmakerDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_STATIC_STATUS, m_static_status);
+	DDX_Control(pDX, IDC_CHECK_FILESIZE, m_check_filesize);
+	DDX_Control(pDX, IDC_CHECK_FILEVERSION, m_check_fileversion);
 }
 
 BEGIN_MESSAGE_MAP(CfilelistmakerDlg, CDialogEx)
@@ -70,6 +73,8 @@ BEGIN_MESSAGE_MAP(CfilelistmakerDlg, CDialogEx)
 	ON_WM_DROPFILES()
 	ON_BN_CLICKED(IDOK, &CfilelistmakerDlg::OnBnClickedOk)
 	ON_BN_CLICKED(IDCANCEL, &CfilelistmakerDlg::OnBnClickedCancel)
+	ON_BN_CLICKED(IDC_CHECK_FILESIZE, &CfilelistmakerDlg::OnBnClickedCheckFilesize)
+	ON_BN_CLICKED(IDC_CHECK_FILEVERSION, &CfilelistmakerDlg::OnBnClickedCheckFileversion)
 END_MESSAGE_MAP()
 
 
@@ -106,6 +111,9 @@ BOOL CfilelistmakerDlg::OnInitDialog()
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	SetWindowPos(&wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+
+	m_check_filesize.SetCheck(theApp.GetProfileInt(_T("setting"), _T("check filesize"), BST_CHECKED));
+	m_check_fileversion.SetCheck(theApp.GetProfileInt(_T("setting"), _T("check fileversion"), BST_CHECKED));
 
 	DragAcceptFiles();
 
@@ -166,11 +174,16 @@ HCURSOR CfilelistmakerDlg::OnQueryDragIcon()
 void CfilelistmakerDlg::OnDropFiles(HDROP hDropInfo)
 {
 	// TODO: 여기에 메시지 처리기 코드를 추가 및/또는 기본값을 호출합니다.
+	m_static_status.set_text(_T("파일, 폴더 정보를 분석중입니다."), GRAY128);
+
 	TCHAR sfile[MAX_PATH];
 	UINT drop_num = DragQueryFile(hDropInfo, 0xffffffff, NULL, 0);
 
 	m_dropList.clear();
 
+	//하나의 폴더가 드롭되면 해당 폴더내의 모든 폴더+파일들을 리스팅하는 것이므로
+	//m_droppedFolder는 해당 폴더까지의 fullpath가 된다.
+	//두개 이상의 폴더가 드롭되면 해당 폴더들이 존재하는 폴더가 m_droppedFolder가 된다.
 	for (int i = 0; i < drop_num; i++)
 	{
 		DragQueryFile(hDropInfo, i, sfile, MAX_PATH);
@@ -180,10 +193,10 @@ void CfilelistmakerDlg::OnDropFiles(HDROP hDropInfo)
 	if (m_dropList.size() == 0)
 		return;
 
-	if (PathIsDirectory(m_dropList[0]))
-		m_droppedFolder = GetParentDirectory(m_dropList[0]);
+	if (drop_num == 1)
+		m_droppedFolder = m_dropList[0];
 	else
-		m_droppedFolder = get_part(m_dropList[0], fn_folder);
+		m_droppedFolder = GetParentDirectory(m_dropList[0]);
 
 	make_list();
 
@@ -192,6 +205,8 @@ void CfilelistmakerDlg::OnDropFiles(HDROP hDropInfo)
 
 void CfilelistmakerDlg::make_list()
 {
+	m_static_status.set_text(_T("파일목록을 생성중입니다."));
+
 	int i;
 	long t0 = clock();
 
@@ -222,38 +237,59 @@ void CfilelistmakerDlg::make_list()
 		}
 	}
 
+	m_static_status.set_text(_T("filelist.lst 파일로 저장중입니다."));
+
 	int pos;
 
 	//확장자를 .lst로 한 이유는 NH UCTogether 당시 파일보안정책으로
-	//서버에서 .txt파일을 열면 바로 암호화되어 파일 내용이 변경되는 문제가 발생하여 lst로 변경함.
+	//서버에서 .txt파일을 열면 바로 암호화되어 파일 내용이 변경되는 문제가 발생하여
+	//보안검열 대상이 아닌 lst 확장자로 변경함.
+
+	//파일목록에 filelist.lst 자기자신이 있다면 삭제한다.
 	while ((pos = find_dqstring(m_files, _T("filelist.lst"))) >= 0)
 	{
 		m_files.erase(m_files.begin() + pos);
 	}
 
 	FILE* fp = NULL;
+	uint64_t filesize;
+	CString version;
 
-	_tfopen_s(&fp, m_droppedFolder + _T("\\filelist.lst"), _T("wt"));
+	_tfopen_s(&fp, m_droppedFolder + _T("\\filelist.lst"), _T("wt")CHARSET);
 	//fp = fopen(m_droppedFolder + _T("\\filelist.lst"), _T("wt"));
 	if (fp == NULL)
 	{
-		AfxMessageBox(_T("filelist.lst 파일 생성 실패"));
+		m_static_status.set_text(_T("filelist.lst 파일 생성 실패."), red);
 		return;
 	}
 
+	bool include_filesize = (m_check_filesize.GetCheck() == BST_CHECKED);
+	bool include_fileversion = (m_check_fileversion.GetCheck() == BST_CHECKED);
+
 	for (i = 0; i < m_files.size(); i++)
 	{
+		filesize = get_file_size(m_files[i]);
+		version = get_file_property(m_files[i], _T("FileVersion"));
 		m_files[i].Replace(m_droppedFolder + _T("\\"), _T(""));
-		//m_files[i].Replace(_T("\\"), _T("/"));
-		//_ftprintf(fp, _T("%s\n"), m_files[i]);
-		_ftprintf(fp, _T("%s\n"), m_files[i]);
+		
+		_ftprintf(fp, _T("%s"), m_files[i]);
+
+		if (include_filesize)
+			_ftprintf(fp, _T("|%I64u"), filesize);
+
+		if (include_fileversion)
+		{
+			if (version == _T("(null)"))
+				version = _T("");
+			_ftprintf(fp, _T("|%s"), version);
+		}
+
+		_ftprintf(fp, _T("\n"));
 	}
 
 	fclose(fp);
 
-	CString str;
-	str.Format(_T("Filelist_maker (%ld ms)"), clock() - t0);
-	SetWindowText(str);
+	m_static_status.set_text(_T("filelist.lst 파일 생성 완료."), blue);
 
 	MessageBeep(0);
 }
@@ -268,4 +304,16 @@ void CfilelistmakerDlg::OnBnClickedCancel()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
 	CDialogEx::OnCancel();
+}
+
+
+void CfilelistmakerDlg::OnBnClickedCheckFilesize()
+{
+	theApp.WriteProfileInt(_T("setting"), _T("check filesize"), m_check_filesize.GetCheck());
+}
+
+
+void CfilelistmakerDlg::OnBnClickedCheckFileversion()
+{
+	theApp.WriteProfileInt(_T("setting"), _T("check fileversion"), m_check_fileversion.GetCheck());
 }

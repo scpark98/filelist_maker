@@ -6,6 +6,8 @@
 
 #include <deque>
 
+#include "../Common/CStatic/SCStatic/SCStatic.h"
+
 // CfilelistmakerDlg 대화 상자
 class CfilelistmakerDlg : public CDialogEx
 {
@@ -43,4 +45,9 @@ public:
 	afx_msg void OnDropFiles(HDROP hDropInfo);
 	afx_msg void OnBnClickedOk();
 	afx_msg void OnBnClickedCancel();
+	CSCStatic m_static_status;
+	CButton m_check_filesize;
+	CButton m_check_fileversion;
+	afx_msg void OnBnClickedCheckFilesize();
+	afx_msg void OnBnClickedCheckFileversion();
 };

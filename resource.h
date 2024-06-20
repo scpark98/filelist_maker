@@ -7,6 +7,10 @@
 #define IDS_ABOUTBOX                    101
 #define IDD_FILE_LIST_MAKER_DIALOG      102
 #define IDR_MAINFRAME                   128
+#define IDC_STATIC_STATUS               1000
+#define IDC_CHECK_FILESIZE              1002
+#define IDC_CHECK_FILEVERSION           1003
+#define IDC_STATIC_STATUS2              1004
 
 // Next default values for new objects
 // 
@@ -14,7 +18,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1000
+#define _APS_NEXT_CONTROL_VALUE         1002
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
