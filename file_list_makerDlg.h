@@ -15,7 +15,7 @@ class CfilelistmakerDlg : public CDialogEx
 public:
 	CfilelistmakerDlg(CWnd* pParent = nullptr);	// 표준 생성자입니다.
 
-	void	make_list();
+	void	thread_make_list();
 
 // 대화 상자 데이터입니다.
 #ifdef AFX_DESIGN_TIME
@@ -26,6 +26,10 @@ protected:
 	std::deque<CString> m_files;
 	std::deque<CString> m_dropList;
 	CString m_droppedFolder;
+
+	//일부 변경된 파일들만 drag&drop하여 추가할 경우
+	//drop된 파일들이 모두 zip파일이 아닌 경우에만 진행.
+	bool	check_dropped_files_not_zip();
 
 	protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 지원입니다.
@@ -50,4 +54,5 @@ public:
 	CButton m_check_fileversion;
 	afx_msg void OnBnClickedCheckFilesize();
 	afx_msg void OnBnClickedCheckFileversion();
+	CProgressCtrl m_progress;
 };

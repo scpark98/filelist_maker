@@ -48,6 +48,9 @@
     <ClInclude Include="..\Common\GdiplusBitmap.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\zip\zip\zip.h">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="file_list_maker.cpp">
@@ -69,6 +72,9 @@
       <Filter>Common</Filter>
     </ClCompile>
     <ClCompile Include="..\Common\GdiplusBitmap.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Common\zip\zip\zip.cpp">
       <Filter>Common</Filter>
     </ClCompile>
   </ItemGroup>

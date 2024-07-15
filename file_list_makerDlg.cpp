@@ -8,7 +8,10 @@
 #include "file_list_makerDlg.h"
 #include "afxdialogex.h"
 
+#include <thread>
+
 #include "../Common/Functions.h"
+#include "../Common/zip/zip/zip.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -64,6 +67,7 @@ void CfilelistmakerDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_STATIC_STATUS, m_static_status);
 	DDX_Control(pDX, IDC_CHECK_FILESIZE, m_check_filesize);
 	DDX_Control(pDX, IDC_CHECK_FILEVERSION, m_check_fileversion);
+	DDX_Control(pDX, IDC_PROGRESS, m_progress);
 }
 
 BEGIN_MESSAGE_MAP(CfilelistmakerDlg, CDialogEx)
@@ -183,7 +187,7 @@ void CfilelistmakerDlg::OnDropFiles(HDROP hDropInfo)
 
 	//하나의 폴더가 드롭되면 해당 폴더내의 모든 폴더+파일들을 리스팅하는 것이므로
 	//m_droppedFolder는 해당 폴더까지의 fullpath가 된다.
-	//두개 이상의 폴더가 드롭되면 해당 폴더들이 존재하는 폴더가 m_droppedFolder가 된다.
+	//두개 이상의 파일 또는 폴더가 드롭되면 해당 폴더들이 존재하는 폴더가 m_droppedFolder가 된다.
 	for (int i = 0; i < drop_num; i++)
 	{
 		DragQueryFile(hDropInfo, i, sfile, MAX_PATH);
@@ -194,26 +198,55 @@ void CfilelistmakerDlg::OnDropFiles(HDROP hDropInfo)
 		return;
 
 	if (drop_num == 1)
+	{
 		m_droppedFolder = m_dropList[0];
+	}
 	else
+	{
 		m_droppedFolder = GetParentDirectory(m_dropList[0]);
+	}
 
-	make_list();
+	if (!IsFolder(m_droppedFolder))
+		m_droppedFolder = get_part(m_droppedFolder, fn_folder);
+
+	std::thread th(&CfilelistmakerDlg::thread_make_list, this);
+	th.detach();
 
 	CDialogEx::OnDropFiles(hDropInfo);
 }
 
-void CfilelistmakerDlg::make_list()
+//일부 변경된 파일들만 drag&drop하여 추가할 경우
+//drop된 파일들이 모두 zip파일이 아닌 경우에만 진행.
+bool CfilelistmakerDlg::check_dropped_files_not_zip()
+{
+	bool res = true;
+
+	for (auto file : m_files)
+	{
+		if (file.Right(4).MakeLower() == _T(".zip"))
+			return false;
+	}
+
+	return true;
+}
+
+void CfilelistmakerDlg::thread_make_list()
 {
 	m_static_status.set_text(_T("파일목록을 생성중입니다."));
 
 	int i;
 	long t0 = clock();
+	CString str;
+	FILE* fp = NULL;
 
 	m_files.clear();
 
+	m_progress.SetRange(0, m_dropList.size());
+
 	for (i = 0; i < m_dropList.size(); i++)
 	{
+		m_progress.SetPos(i + 1);
+
 		std::deque<CString> files;
 
 		if (IsFolder(m_dropList[i]))
@@ -251,11 +284,37 @@ void CfilelistmakerDlg::make_list()
 		m_files.erase(m_files.begin() + pos);
 	}
 
-	FILE* fp = NULL;
+	//만약 기존 생성해놓은 flielist.lst가 존재하고
+	//몇 개의 파일만 변경된 경우라면 다음과 같은 과정을 거쳐야 한다.
+	//1.모든 파일들을 압축을 푼 후 압축파일들을 지운다.
+	//2.해당 폴더를 다시 drag&drop하여 리스트 파일을 생성한다.
+	//단 2단계라고 해도 sub folder들이 많을 경우 등
+	//매우 번거로울 수 있으므로 몇 개 파일만 새로 갱신하는 기능 추가.
+	//기존 filelist.lst 내용을 저장해놓고 새로 갱신할 파일들을 갱신한 후
+	//기존 파일정보들을 filelist.lst에 추가 기록한다.
+	//새로 추가된 파일들은 목록 맨 위에 오게된다.
+	std::deque<CString> dq_already_exist_file_list;
+
+	if (get_file_size(m_droppedFolder + _T("\\filelist.lst")) > 0 &&
+		check_dropped_files_not_zip())
+	{
+		read_file(m_droppedFolder + _T("\\filelist.lst"), &dq_already_exist_file_list, true);
+	}
+
+
+	//m_files에 저장된 파일목록을 목록파일로 생성.
 	uint64_t filesize;
 	CString version;
 
 	_tfopen_s(&fp, m_droppedFolder + _T("\\filelist.lst"), _T("wt")CHARSET);
+
+	if (fp == NULL)
+		return;
+
+	//UTF-8로 저장하되 자동으로 붙는 BOM(3 char)를 날려준다.
+	//그렇지 않으면 InternetReadFile()로 읽어올 때 BOM문자까지 읽어지므로 문제가 된다.
+	fseek(fp, 0L, SEEK_SET);
+
 	//fp = fopen(m_droppedFolder + _T("\\filelist.lst"), _T("wt"));
 	if (fp == NULL)
 	{
@@ -266,17 +325,60 @@ void CfilelistmakerDlg::make_list()
 	bool include_filesize = (m_check_filesize.GetCheck() == BST_CHECKED);
 	bool include_fileversion = (m_check_fileversion.GetCheck() == BST_CHECKED);
 
+	m_progress.SetRange(0, m_files.size());
+
 	for (i = 0; i < m_files.size(); i++)
 	{
+		m_progress.SetPos(i + 1);
+
+		//파일을 낱개로 추가하는 경우는 dq_already_exist_file_list에서는 제거시켜줘야 중복되지 않는다.
+		CString fname = m_files[i];
+		fname.Replace(m_droppedFolder + _T("\\"), _T(""));
+		int index = find_dqstring(dq_already_exist_file_list, fname);
+		if (index >= 0)
+			dq_already_exist_file_list.erase(dq_already_exist_file_list.begin() + index);
+
 		filesize = get_file_size(m_files[i]);
 		version = get_file_property(m_files[i], _T("FileVersion"));
+
+		//test.exe -> test.exe.zip으로 압축하고 원본 파일은 삭제한다.
+		HZIP hz = CreateZip(m_files[i] + _T(".zip"), 0);
+		ZRESULT zr;
+
+		if (hz == NULL)
+		{
+			m_static_status.set_textf(red, _T("CreateZip() failed : %s"), m_files[i]);
+			return;
+		}
+
+		zr = ZipAdd(hz, get_part(m_files[i], fn_name), m_files[i]);
+		if (zr != ZR_OK)
+		{
+			m_static_status.set_textf(red, _T("ZipAdd() failed : %s"), m_files[i]);
+			return;
+		}
+
+		zr = CloseZip(hz);
+		DeleteFile(m_files[i]);
+
+
+
+		//상대경로로 바꿔주고
 		m_files[i].Replace(m_droppedFolder + _T("\\"), _T(""));
 		
+
+		//파일명 기록
 		_ftprintf(fp, _T("%s"), m_files[i]);
 
-		if (include_filesize)
-			_ftprintf(fp, _T("|%I64u"), filesize);
 
+		//파일크기 기록
+		if (include_filesize)
+		{
+			_ftprintf(fp, _T("|%I64u"), filesize);
+		}
+
+
+		//파일버전 기록
 		if (include_fileversion)
 		{
 			if (version == _T("(null)"))
@@ -285,6 +387,12 @@ void CfilelistmakerDlg::make_list()
 		}
 
 		_ftprintf(fp, _T("\n"));
+	}
+
+	//dq_other_files_List의 내용이 존재한다면 파일에 이어서 write해준다.
+	for (auto list : dq_already_exist_file_list)
+	{
+		_ftprintf(fp, _T("%s\n"), list);
 	}
 
 	fclose(fp);
