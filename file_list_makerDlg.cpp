@@ -119,6 +119,8 @@ BOOL CfilelistmakerDlg::OnInitDialog()
 	m_check_filesize.SetCheck(theApp.GetProfileInt(_T("setting"), _T("check filesize"), BST_CHECKED));
 	m_check_fileversion.SetCheck(theApp.GetProfileInt(_T("setting"), _T("check fileversion"), BST_CHECKED));
 
+	SetWindowText(_T("Filelist Maker (ver.") + get_file_property() + _T(")"));
+
 	DragAcceptFiles();
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
@@ -288,9 +290,9 @@ void CfilelistmakerDlg::thread_make_list()
 	//몇 개의 파일만 변경된 경우라면 다음과 같은 과정을 거쳐야 한다.
 	//1.모든 파일들을 압축을 푼 후 압축파일들을 지운다.
 	//2.해당 폴더를 다시 drag&drop하여 리스트 파일을 생성한다.
-	//단 2단계라고 해도 sub folder들이 많을 경우 등
-	//매우 번거로울 수 있으므로 몇 개 파일만 새로 갱신하는 기능 추가.
-	//기존 filelist.lst 내용을 저장해놓고 새로 갱신할 파일들을 갱신한 후
+	//불과 2단계라고 해도 sub folder들이 많을 경우 등
+	//매우 번거로울 수 있고 수작업 시 문제가 발생할 수 있으므로 몇 개 파일만 새로 갱신하는 기능 추가함.
+	//기존 filelist.lst 내용을 저장해놓고 새로 갱신할 파일들 정보를 추출하여 기록한 후
 	//기존 파일정보들을 filelist.lst에 추가 기록한다.
 	//새로 추가된 파일들은 목록 맨 위에 오게된다.
 	std::deque<CString> dq_already_exist_file_list;
@@ -334,6 +336,10 @@ void CfilelistmakerDlg::thread_make_list()
 		//파일을 낱개로 추가하는 경우는 dq_already_exist_file_list에서는 제거시켜줘야 중복되지 않는다.
 		CString fname = m_files[i];
 		fname.Replace(m_droppedFolder + _T("\\"), _T(""));
+		m_static_status.set_textf(-1, _T("%s 파일 처리중..."), fname);
+
+		//만약 기존에 이미 생성완료된 상태에서 개별 갱신하는 경우라면
+		//개별 갱신하는 파일은 기존 목록에서 지워줘야 중복되지 않는다.
 		int index = find_dqstring(dq_already_exist_file_list, fname);
 		if (index >= 0)
 			dq_already_exist_file_list.erase(dq_already_exist_file_list.begin() + index);
