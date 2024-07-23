@@ -286,6 +286,13 @@ void CfilelistmakerDlg::thread_make_list()
 		m_files.erase(m_files.begin() + pos);
 	}
 
+	//파일목록에 기존 filelist.txt도 있다면 삭제한다.
+	while ((pos = find_dqstring(m_files, _T("filelist.txt"))) >= 0)
+	{
+		m_files.erase(m_files.begin() + pos);
+	}
+
+
 	//만약 기존 생성해놓은 flielist.lst가 존재하고
 	//몇 개의 파일만 변경된 경우라면 다음과 같은 과정을 거쳐야 한다.
 	//1.모든 파일들을 압축을 푼 후 압축파일들을 지운다.
@@ -308,21 +315,24 @@ void CfilelistmakerDlg::thread_make_list()
 	uint64_t filesize;
 	CString version;
 
+	//압축작업 및 리스트 파일 작업 시 실패할 경우를 대비하여 filelist.lst 파일을 백업해둬야 한다.
+	if (PathFileExists(m_droppedFolder + _T("\\filelist.lst")))
+	{
+		CopyFile(m_droppedFolder + _T("\\filelist.lst"), m_droppedFolder + _T("\\filelist.bak"), FALSE);
+	}
+
 	_tfopen_s(&fp, m_droppedFolder + _T("\\filelist.lst"), _T("wt")CHARSET);
 
 	if (fp == NULL)
+	{
+		m_static_status.set_text(_T("filelist.lst 파일 생성 실패."), red);
+		DeleteFile(m_droppedFolder + _T("\\filelist.bak"));
 		return;
+	}
 
 	//UTF-8로 저장하되 자동으로 붙는 BOM(3 char)를 날려준다.
 	//그렇지 않으면 InternetReadFile()로 읽어올 때 BOM문자까지 읽어지므로 문제가 된다.
 	fseek(fp, 0L, SEEK_SET);
-
-	//fp = fopen(m_droppedFolder + _T("\\filelist.lst"), _T("wt"));
-	if (fp == NULL)
-	{
-		m_static_status.set_text(_T("filelist.lst 파일 생성 실패."), red);
-		return;
-	}
 
 	bool include_filesize = (m_check_filesize.GetCheck() == BST_CHECKED);
 	bool include_fileversion = (m_check_fileversion.GetCheck() == BST_CHECKED);
@@ -354,6 +364,10 @@ void CfilelistmakerDlg::thread_make_list()
 		if (hz == NULL)
 		{
 			m_static_status.set_textf(red, _T("CreateZip() failed : %s"), m_files[i]);
+			AfxMessageBox(m_files[i] + _T(".zip") + _T("\n위 파일이 다른 프로그램에 의해 열려있거나 새로 생성할 수 없습니다. 확인 후 다시 실행하십시오."));
+			fclose(fp);
+			DeleteFile(m_droppedFolder + _T("\\filelist.lst"));
+			MoveFileEx(m_droppedFolder + _T("\\filelist.bak"), m_droppedFolder + _T("\\filelist.lst"), MOVEFILE_REPLACE_EXISTING);
 			return;
 		}
 
@@ -361,6 +375,10 @@ void CfilelistmakerDlg::thread_make_list()
 		if (zr != ZR_OK)
 		{
 			m_static_status.set_textf(red, _T("ZipAdd() failed : %s"), m_files[i]);
+			AfxMessageBox(m_files[i] + _T("\n위 파일을 압축할 수 없습니다. 확인 후 다시 실행하십시오."));
+			fclose(fp);
+			DeleteFile(m_droppedFolder + _T("\\filelist.lst"));
+			MoveFileEx(m_droppedFolder + _T("\\filelist.bak"), m_droppedFolder + _T("\\filelist.lst"), MOVEFILE_REPLACE_EXISTING);
 			return;
 		}
 
