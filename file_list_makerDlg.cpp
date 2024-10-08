@@ -423,6 +423,8 @@ void CfilelistmakerDlg::thread_make_list()
 
 	m_static_status.set_text(_T("filelist.lst 파일 생성 완료."), blue);
 
+	//정상적으로 작업이 완료되면 백업해 둔 파일은 삭제한다.
+	DeleteFile(m_droppedFolder + _T("\\filelist.bak"));
 	MessageBeep(0);
 }
 
