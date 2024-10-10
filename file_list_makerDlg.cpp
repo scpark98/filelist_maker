@@ -325,7 +325,7 @@ void CfilelistmakerDlg::thread_make_list()
 
 	if (fp == NULL)
 	{
-		m_static_status.set_text(_T("filelist.lst 파일 생성 실패."), red);
+		m_static_status.set_text(_T("filelist.lst 파일 생성 실패."), Gdiplus::Color::Red);
 		DeleteFile(m_droppedFolder + _T("\\filelist.bak"));
 		return;
 	}
@@ -363,7 +363,7 @@ void CfilelistmakerDlg::thread_make_list()
 
 		if (hz == NULL)
 		{
-			m_static_status.set_textf(red, _T("CreateZip() failed : %s"), m_files[i]);
+			m_static_status.set_textf(Gdiplus::Color::Red, _T("CreateZip() failed : %s"), m_files[i]);
 			AfxMessageBox(m_files[i] + _T(".zip") + _T("\n위 파일이 다른 프로그램에 의해 열려있거나 새로 생성할 수 없습니다. 확인 후 다시 실행하십시오."));
 			fclose(fp);
 			DeleteFile(m_droppedFolder + _T("\\filelist.lst"));
@@ -374,7 +374,7 @@ void CfilelistmakerDlg::thread_make_list()
 		zr = ZipAdd(hz, get_part(m_files[i], fn_name), m_files[i]);
 		if (zr != ZR_OK)
 		{
-			m_static_status.set_textf(red, _T("ZipAdd() failed : %s"), m_files[i]);
+			m_static_status.set_textf(Gdiplus::Color::Red, _T("ZipAdd() failed : %s"), m_files[i]);
 			AfxMessageBox(m_files[i] + _T("\n위 파일을 압축할 수 없습니다. 확인 후 다시 실행하십시오."));
 			fclose(fp);
 			DeleteFile(m_droppedFolder + _T("\\filelist.lst"));
@@ -421,7 +421,7 @@ void CfilelistmakerDlg::thread_make_list()
 
 	fclose(fp);
 
-	m_static_status.set_text(_T("filelist.lst 파일 생성 완료."), blue);
+	m_static_status.set_text(_T("filelist.lst 파일 생성 완료."), Gdiplus::Color::Blue);
 
 	//정상적으로 작업이 완료되면 백업해 둔 파일은 삭제한다.
 	DeleteFile(m_droppedFolder + _T("\\filelist.bak"));
