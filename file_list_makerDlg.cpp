@@ -11,7 +11,6 @@
 #include <thread>
 
 #include "../Common/Functions.h"
-#include "../Common/zip/zip/zip.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -114,7 +113,6 @@ BOOL CfilelistmakerDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
-	SetWindowPos(&wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
 
 	m_check_filesize.SetCheck(theApp.GetProfileInt(_T("setting"), _T("check filesize"), BST_CHECKED));
 	m_check_fileversion.SetCheck(theApp.GetProfileInt(_T("setting"), _T("check fileversion"), BST_CHECKED));
@@ -122,6 +120,8 @@ BOOL CfilelistmakerDlg::OnInitDialog()
 	SetWindowText(_T("Filelist Maker (ver.") + get_file_property() + _T(")"));
 
 	DragAcceptFiles();
+
+	SetWindowPos(&wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -199,14 +199,7 @@ void CfilelistmakerDlg::OnDropFiles(HDROP hDropInfo)
 	if (m_dropList.size() == 0)
 		return;
 
-	if (drop_num == 1)
-	{
-		m_droppedFolder = m_dropList[0];
-	}
-	else
-	{
-		m_droppedFolder = GetParentDirectory(m_dropList[0]);
-	}
+	m_droppedFolder = get_parent_dir(m_dropList[0]);
 
 	if (!IsFolder(m_droppedFolder))
 		m_droppedFolder = get_part(m_droppedFolder, fn_folder);
@@ -245,6 +238,9 @@ void CfilelistmakerDlg::thread_make_list()
 
 	m_progress.SetRange(0, m_dropList.size());
 
+	//하위 폴더가 있을 경우 그 폴더내의 모든 파일/폴더를 개별적으로 리스트로 생성했으나
+	//하위 폴더는 그냥 하나의 폴더.zip으로 생성하도록 변경한다.
+	/*
 	for (i = 0; i < m_dropList.size(); i++)
 	{
 		m_progress.SetPos(i + 1);
@@ -271,6 +267,8 @@ void CfilelistmakerDlg::thread_make_list()
 			m_files.push_back(m_dropList[i]);
 		}
 	}
+	*/
+	m_files.assign(m_dropList.begin(), m_dropList.end());
 
 	m_static_status.set_text(_T("filelist.lst 파일로 저장중입니다."));
 
@@ -294,9 +292,10 @@ void CfilelistmakerDlg::thread_make_list()
 
 
 	//만약 기존 생성해놓은 flielist.lst가 존재하고
-	//몇 개의 파일만 변경된 경우라면 다음과 같은 과정을 거쳐야 한다.
+	//몇 개의 파일만 변경된 경우라면 다음과 같은 수작업을 거쳐야 한다.
 	//1.모든 파일들을 압축을 푼 후 압축파일들을 지운다.
 	//2.해당 폴더를 다시 drag&drop하여 리스트 파일을 생성한다.
+	//
 	//불과 2단계라고 해도 sub folder들이 많을 경우 등
 	//매우 번거로울 수 있고 수작업 시 문제가 발생할 수 있으므로 몇 개 파일만 새로 갱신하는 기능 추가함.
 	//기존 filelist.lst 내용을 저장해놓고 새로 갱신할 파일들 정보를 추출하여 기록한 후
@@ -346,7 +345,7 @@ void CfilelistmakerDlg::thread_make_list()
 		//파일을 낱개로 추가하는 경우는 dq_already_exist_file_list에서는 제거시켜줘야 중복되지 않는다.
 		CString fname = m_files[i];
 		fname.Replace(m_droppedFolder + _T("\\"), _T(""));
-		m_static_status.set_textf(-1, _T("%s 파일 처리중..."), fname);
+		m_static_status.set_textf(_T("%s 파일 처리중..."), fname);
 
 		//만약 기존에 이미 생성완료된 상태에서 개별 갱신하는 경우라면
 		//개별 갱신하는 파일은 기존 목록에서 지워줘야 중복되지 않는다.
@@ -354,46 +353,72 @@ void CfilelistmakerDlg::thread_make_list()
 		if (index >= 0)
 			dq_already_exist_file_list.erase(dq_already_exist_file_list.begin() + index);
 
-		filesize = get_file_size(m_files[i]);
-		version = get_file_property(m_files[i], _T("FileVersion"));
-
-		//test.exe -> test.exe.zip으로 압축하고 원본 파일은 삭제한다.
-		HZIP hz = CreateZip(m_files[i] + _T(".zip"), 0);
 		ZRESULT zr;
+		bool is_folder = false;
 
-		if (hz == NULL)
+		if (PathIsDirectory(m_files[i]))
 		{
-			m_static_status.set_textf(Gdiplus::Color::Red, _T("CreateZip() failed : %s"), m_files[i]);
-			AfxMessageBox(m_files[i] + _T(".zip") + _T("\n위 파일이 다른 프로그램에 의해 열려있거나 새로 생성할 수 없습니다. 확인 후 다시 실행하십시오."));
-			fclose(fp);
-			DeleteFile(m_droppedFolder + _T("\\filelist.lst"));
-			MoveFileEx(m_droppedFolder + _T("\\filelist.bak"), m_droppedFolder + _T("\\filelist.lst"), MOVEFILE_REPLACE_EXISTING);
-			return;
+			is_folder = true;
+
+			version = _T("");
+			zr = zip_folder(m_files[i], m_files[i] + _T(".zip"));
+
+			if (zr != ZR_OK)
+			{
+				AfxMessageBox(m_files[i] + _T("\n위 폴더를 압축할 수 없습니다. 확인 후 다시 실행하십시오."));
+				fclose(fp);
+				DeleteFile(m_droppedFolder + _T("\\filelist.lst"));
+				MoveFileEx(m_droppedFolder + _T("\\filelist.bak"), m_droppedFolder + _T("\\filelist.lst"), MOVEFILE_REPLACE_EXISTING);
+				return;
+			}
+
+			filesize = get_folder_size(m_files[i]);
+
+			SHDeleteFolder(m_files[i]);
+		}
+		else
+		{
+			filesize = get_file_size(m_files[i]);
+			version = get_file_property(m_files[i], _T("FileVersion"));
+
+			//test.exe -> test.exe.zip으로 압축하고 원본 파일은 삭제한다.
+			HZIP hz = CreateZip(m_files[i] + _T(".zip"), 0);
+
+			if (hz == NULL)
+			{
+				m_static_status.set_text_color(Gdiplus::Color::Red);
+				m_static_status.set_textf(_T("CreateZip() failed : %s"), m_files[i]);
+				AfxMessageBox(m_files[i] + _T(".zip") + _T("\n위 파일이 다른 프로그램에 의해 열려있거나 새로 생성할 수 없습니다. 확인 후 다시 실행하십시오."));
+				fclose(fp);
+				DeleteFile(m_droppedFolder + _T("\\filelist.lst"));
+				MoveFileEx(m_droppedFolder + _T("\\filelist.bak"), m_droppedFolder + _T("\\filelist.lst"), MOVEFILE_REPLACE_EXISTING);
+				return;
+			}
+
+			zr = ZipAdd(hz, get_part(m_files[i], fn_name), m_files[i]);
+			if (zr != ZR_OK)
+			{
+				m_static_status.set_text_color(Gdiplus::Color::Red);
+				m_static_status.set_textf(_T("ZipAdd() failed : %s"), m_files[i]);
+				AfxMessageBox(m_files[i] + _T("\n위 파일을 압축할 수 없습니다. 확인 후 다시 실행하십시오."));
+				fclose(fp);
+				DeleteFile(m_droppedFolder + _T("\\filelist.lst"));
+				MoveFileEx(m_droppedFolder + _T("\\filelist.bak"), m_droppedFolder + _T("\\filelist.lst"), MOVEFILE_REPLACE_EXISTING);
+				return;
+			}
+
+			zr = CloseZip(hz);
+			DeleteFile(m_files[i]);
 		}
 
-		zr = ZipAdd(hz, get_part(m_files[i], fn_name), m_files[i]);
-		if (zr != ZR_OK)
-		{
-			m_static_status.set_textf(Gdiplus::Color::Red, _T("ZipAdd() failed : %s"), m_files[i]);
-			AfxMessageBox(m_files[i] + _T("\n위 파일을 압축할 수 없습니다. 확인 후 다시 실행하십시오."));
-			fclose(fp);
-			DeleteFile(m_droppedFolder + _T("\\filelist.lst"));
-			MoveFileEx(m_droppedFolder + _T("\\filelist.bak"), m_droppedFolder + _T("\\filelist.lst"), MOVEFILE_REPLACE_EXISTING);
-			return;
-		}
-
-		zr = CloseZip(hz);
-		DeleteFile(m_files[i]);
-
-
-
-		//상대경로로 바꿔주고
+		//filelist.lst에는 상대경로로 기록해야 하므로 절대경로를 상대경로로 바꿔주고
 		m_files[i].Replace(m_droppedFolder + _T("\\"), _T(""));
-		
 
 		//파일명 기록
-		_ftprintf(fp, _T("%s"), m_files[i]);
-
+		if (is_folder)
+			_ftprintf(fp, _T("%s.zip"), m_files[i]);
+		else
+			_ftprintf(fp, _T("%s"), m_files[i]);
 
 		//파일크기 기록
 		if (include_filesize)
@@ -450,4 +475,20 @@ void CfilelistmakerDlg::OnBnClickedCheckFilesize()
 void CfilelistmakerDlg::OnBnClickedCheckFileversion()
 {
 	theApp.WriteProfileInt(_T("setting"), _T("check fileversion"), m_check_fileversion.GetCheck());
+}
+
+//target_folder의 모든 파일/폴더를 zip_path 압축파일로 만든다.
+ZRESULT CfilelistmakerDlg::zip_folder(CString target_folder, CString zip_path)
+{
+	if (!PathIsDirectory(target_folder))
+	{
+		TRACE(_T("%s\n"), target_folder + _T("\n위의 폴더가 존재하지 않거나 폴더가 아닙니다."));
+		return ZR_READ;
+	}
+
+	std::deque<CString> dq;
+	dq = find_all_files(target_folder);
+	//FindAllFiles(target_folder, &dq, _T("*"), _T("*"), true, false, _T(""), true);
+
+	return ZipAddMultipleFiles(_T(""), target_folder, dq, zip_path);
 }

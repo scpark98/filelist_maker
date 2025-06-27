@@ -10,7 +10,16 @@
   //그렇지 않으면 InternetReadFile()로 읽어올 때 BOM문자까지 읽어지므로 문제가 된다.
   fseek(fp, 0L, SEEK_SET);
 
+[하위 폴더에 대한 규칙]
+- 리스트 항목에 추가되는 대상 폴더가 존재할 경우 그 폴더내의 모든 파일/폴더를 리스트 항목에 추가하지 않고
+  폴더명.zip이라는 하나의 압축파일로 추가함.
+  (https://docs.google.com/presentation/d/1Rc18rcW05aMKB4FbQLFV-N-FKEg1hGmK62_01AzoLTQ/edit?slide=id.g361189aeeb7_0_16#slide=id.g361189aeeb7_0_16)
+  따라서 filelist.lst로 생성하고자 하는 모든 파일+폴더들을 선택하여 drag&drop 해야 한다.
+  생성하고자 하는 파일+폴더들의 parent 폴더를 drag&drop해서는 안된다.
+
 [수정할 내용]
+- drag&drop된 목록중에서 하위 폴더가 존재할 경우 해당 하위 폴더를 하나의 zip으로 압축한 뒤
+  해당 폴더를 삭제시켜줘야 한다.
 
 
 [수정된 내용]

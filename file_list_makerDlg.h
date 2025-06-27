@@ -6,6 +6,7 @@
 
 #include <deque>
 
+#include "../Common/zip/zip/zip.h"
 #include "../Common/CStatic/SCStatic/SCStatic.h"
 
 // CfilelistmakerDlg 대화 상자
@@ -15,7 +16,10 @@ class CfilelistmakerDlg : public CDialogEx
 public:
 	CfilelistmakerDlg(CWnd* pParent = nullptr);	// 표준 생성자입니다.
 
-	void	thread_make_list();
+	void		thread_make_list();
+
+	//target_folder의 모든 파일/폴더를 zip_path 압축파일로 만든다.
+	ZRESULT		zip_folder(CString target_folder, CString zip_path);
 
 // 대화 상자 데이터입니다.
 #ifdef AFX_DESIGN_TIME
